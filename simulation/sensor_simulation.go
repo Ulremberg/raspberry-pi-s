@@ -1,13 +1,15 @@
 package main
 
 import (
-    "bytes"
+	"bytes"
     "encoding/json"
     "fmt"
+    "log"
     "math/rand"
-    "net/http"
+    "net/http"   
     "sync"
     "time"
+    
 )
 
 type SensorData struct {
@@ -33,20 +35,31 @@ func simulateSensor(sensorID string, piIP string, duration int, wg *sync.WaitGro
 
         jsonData, _ := json.Marshal(data)
 
-        http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+        startTime := time.Now()
+        resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+        elapsedTime := time.Since(startTime).Milliseconds()
+
+        if err != nil {
+            log.Printf("Error sending data from %s: %v", sensorID, err)
+        } else {
+            resp.Body.Close()
+            log.Printf("Sent data from %s to %s in %d ms", sensorID, piIP, elapsedTime)
+        }
+
         time.Sleep(time.Second)
     }
 }
 
 func main() {
+	
     piZeroWIP := ""  
-    piZero2WIP := "" 
+    //piZero2WIP := "" 
 
     numSensors := 10
     duration := 60 
     var wg sync.WaitGroup
 
-    for _, piIP := range []string{piZeroWIP, piZero2WIP} {
+    for _, piIP := range []string{piZeroWIP} {
         for i := 0; i < numSensors; i++ {
             sensorID := fmt.Sprintf("sensor_%d", i+1)
             wg.Add(1)
