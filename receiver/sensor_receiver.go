@@ -5,6 +5,7 @@ import (
     "fmt"
     "log"
     "net/http"
+    "time"
 )
 
 type SensorData struct {
@@ -14,6 +15,8 @@ type SensorData struct {
 }
 
 func receiveSensorData(w http.ResponseWriter, r *http.Request) {
+    startTime := time.Now()
+
     var data SensorData
     err := json.NewDecoder(r.Body).Decode(&data)
     if err != nil {
@@ -22,6 +25,9 @@ func receiveSensorData(w http.ResponseWriter, r *http.Request) {
     }
     
     fmt.Printf("Received data from %s: Temperature=%.2f, Humidity=%.2f\n", data.SensorID, data.Temperature, data.Humidity)
+
+    elapsedTime := time.Since(startTime).Milliseconds()
+    log.Printf("Processed data from %s in %d ms", data.SensorID, elapsedTime)
 
     w.WriteHeader(http.StatusOK)
     fmt.Fprintf(w, `{"status":"success"}`)
