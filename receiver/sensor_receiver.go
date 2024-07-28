@@ -1,6 +1,7 @@
 package main
 
 import (
+    "bytes"
     "encoding/json"
     "fmt"
     "log"
@@ -27,11 +28,11 @@ type SMIResult struct {
 
 func calculateSMI(soilMoisture, wiltingPoint, fieldCapacity, soilMoistureError, wiltingPointError, fieldCapacityError float64) SMIResult {
     if fieldCapacity == wiltingPoint {
-        return SMIResult{0, 0} 
+        return SMIResult{0, 0}
     }
 
     smi := (soilMoisture - wiltingPoint) / (fieldCapacity - wiltingPoint)
-   
+
     smiError := math.Sqrt(
         math.Pow(soilMoistureError, 2) +
         math.Pow(wiltingPointError, 2) +
@@ -50,10 +51,9 @@ func receiveSensorData(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-   
     soilProps := SoilProperties{
-        WiltingPoint:   0.1, 
-        FieldCapacity: 0.3, 
+        WiltingPoint:   0.1,
+        FieldCapacity: 0.3,
     }
 
     soilMoistureError := 0.03
@@ -61,13 +61,39 @@ func receiveSensorData(w http.ResponseWriter, r *http.Request) {
     fieldCapacityError := 0.12
 
     result := calculateSMI(data.Humidity, soilProps.WiltingPoint, soilProps.FieldCapacity, soilMoistureError, wiltingPointError, fieldCapacityError)
-    fmt.Printf("Received data from %s: Temperature=%.2f, Humidity=%.2f, SMI=%.2f ± %.2f\n", data.SensorID, data.Temperature, data.Humidity, result.SMI, result.SMIError)
+    
+    sendSMIToServer(data.SensorID, result)
 
     elapsedTime := time.Since(startTime).Milliseconds()
     log.Printf("Processed data from %s in %d ms", data.SensorID, elapsedTime)
 
     w.WriteHeader(http.StatusOK)
     json.NewEncoder(w).Encode(result)
+}
+
+func sendSMIToServer(sensorID string, result SMIResult) {
+    url := "http://localhost:8080/smi"
+    data := map[string]interface{}{
+        "sensor_id": sensorID,
+        "smi":       result.SMI,
+        "smi_error": result.SMIError,
+    }
+    jsonData, err := json.Marshal(data)
+    if err != nil {
+        log.Printf("Error encoding SMI data: %v", err)
+        return
+    }
+
+    resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+    if err != nil {
+        log.Printf("Error sending SMI data to server: %v", err)
+        return
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        log.Printf("Error sending SMI data to server: %s", resp.Status)
+    }
 }
 
 func main() {
