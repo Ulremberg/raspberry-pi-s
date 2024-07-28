@@ -1,15 +1,14 @@
 package main
 
 import (
-	"bytes"
+    "bytes"
     "encoding/json"
     "fmt"
     "log"
     "math/rand"
-    "net/http"   
+    "net/http"
     "sync"
     "time"
-    
 )
 
 type SensorData struct {
@@ -18,12 +17,11 @@ type SensorData struct {
     Humidity    float64 `json:"humidity"`
 }
 
-func simulateSensor(sensorID string, piIP string, duration int, wg *sync.WaitGroup) {
+func simulateSensor(sensorID, piIP string, dataCh chan SensorData, wg *sync.WaitGroup, duration int) {
     defer wg.Done()
 
-    url := fmt.Sprintf("http://%s:5000/sensor_data", piIP)
-
-    for i := 0; i < duration; i++ {
+    startTime := time.Now()
+    for time.Since(startTime).Seconds() < float64(duration) {
         temperature := 20 + rand.Float64()*10
         humidity := 40 + rand.Float64()*20
 
@@ -33,39 +31,61 @@ func simulateSensor(sensorID string, piIP string, duration int, wg *sync.WaitGro
             Humidity:    humidity,
         }
 
+        dataCh <- data
+    }
+}
+
+func sendSensorData(piIP string, dataCh <-chan SensorData, wg *sync.WaitGroup, client *http.Client) {
+    defer wg.Done()
+
+    url := fmt.Sprintf("http://%s:5000/sensor_data", piIP)
+
+    for data := range dataCh {
         jsonData, _ := json.Marshal(data)
 
         startTime := time.Now()
-        resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+        resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonData))
         elapsedTime := time.Since(startTime).Milliseconds()
 
         if err != nil {
-            log.Printf("Error sending data from %s: %v", sensorID, err)
+            log.Printf("Error sending data from %s: %v", data.SensorID, err)
         } else {
             resp.Body.Close()
-            log.Printf("Sent data from %s to %s in %d ms", sensorID, piIP, elapsedTime)
+            log.Printf("Sent data from %s to %s in %d ms", data.SensorID, piIP, elapsedTime)
         }
-
-        time.Sleep(time.Second)
     }
 }
 
 func main() {
-	
-    piZeroWIP := ""  
-    //piZero2WIP := "" 
+    piZeroWIP := ""
+    // piZero2WIP := ""
 
-    numSensors := 10
-    duration := 60 
+    numSensors := 100
+    duration := 120 
     var wg sync.WaitGroup
 
+    dataCh := make(chan SensorData, 1000)
+    sendersWg := sync.WaitGroup{}
+ 
+    clients := make([]*http.Client, 10)
+    for i := range clients {
+        clients[i] = &http.Client{}
+    }
+    
     for _, piIP := range []string{piZeroWIP} {
-        for i := 0; i < numSensors; i++ {
-            sensorID := fmt.Sprintf("sensor_%d", i+1)
-            wg.Add(1)
-            go simulateSensor(sensorID, piIP, duration, &wg)
+        for i := range clients {
+            sendersWg.Add(1)
+            go sendSensorData(piIP, dataCh, &sendersWg, clients[i])
         }
+    }
+   
+    for i := 0; i < numSensors; i++ {
+        sensorID := fmt.Sprintf("sensor_%d", i+1)
+        wg.Add(1)
+        go simulateSensor(sensorID, piZeroWIP, dataCh, &wg, duration)
     }
 
     wg.Wait()
+    close(dataCh)
+    sendersWg.Wait()
 }
