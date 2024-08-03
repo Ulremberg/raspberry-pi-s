@@ -64,7 +64,7 @@ func receiveSensorData(w http.ResponseWriter, r *http.Request) {
 }
 
 func sendSMIToServer(sensorID string, result SMIResult) {
-    url := "http://localhost:8080/smi"
+    url := "http://127.0.0.1:8080/smi"
     data := map[string]interface{}{
         "sensor_id": sensorID,
         "smi":       result.SMI,
@@ -76,10 +76,12 @@ func sendSMIToServer(sensorID string, result SMIResult) {
         return
     }
 
-    client := &http.Client{
-        Timeout: time.Second * 10, // 10 second timeout
-    }
+    log.Printf("Attempting to send data to %s", url)
+    log.Printf("Data: %s", string(jsonData))
 
+    client := &http.Client{
+        Timeout: time.Second * 10,
+    }
     req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
     if err != nil {
         log.Printf("Error creating request: %v", err)
@@ -94,8 +96,10 @@ func sendSMIToServer(sensorID string, result SMIResult) {
     }
     defer resp.Body.Close()
 
+    body, _ := ioutil.ReadAll(resp.Body)
+    log.Printf("Response from server: Status: %s, Body: %s", resp.Status, string(body))
+
     if resp.StatusCode != http.StatusOK {
-        body, _ := ioutil.ReadAll(resp.Body)
         log.Printf("Error response from server: Status: %s, Body: %s", resp.Status, string(body))
     } else {
         log.Printf("Successfully sent SMI data to server")
@@ -106,19 +110,20 @@ func checkServerConnectivity(url string) error {
     client := &http.Client{
         Timeout: time.Second * 5,
     }
-    resp, err := client.Get(url)
+    resp, err := client.Get(url + "/health")
     if err != nil {
         return fmt.Errorf("failed to connect to %s: %v", url, err)
     }
     defer resp.Body.Close()
     if resp.StatusCode != http.StatusOK {
-        return fmt.Errorf("unexpected status code from %s: %d", url, resp.StatusCode)
+        body, _ := ioutil.ReadAll(resp.Body)
+        return fmt.Errorf("unexpected status code from %s: %d, body: %s", url, resp.StatusCode, string(body))
     }
     return nil
 }
 
 func main() {
-    serverURL := "http://localhost:8080"
+    serverURL := "http://127.0.0.1:8080"
     err := checkServerConnectivity(serverURL)
     if err != nil {
         log.Printf("Warning: Unable to connect to server at %s: %v", serverURL, err)
