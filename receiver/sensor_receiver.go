@@ -132,7 +132,6 @@ func main() {
         log.Printf("Successfully connected to server at %s", serverURL)
     }
 
-    http.HandleFunc("/sensor_data", receiveSensorData)
-    log.Printf("Starting server on :5000")
+    http.HandleFunc("/sensor_data", receiveSensorData)    
     log.Fatal(http.ListenAndServe(":5000", nil))
 }
