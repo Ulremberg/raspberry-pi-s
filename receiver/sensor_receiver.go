@@ -64,7 +64,8 @@ func receiveSensorData(w http.ResponseWriter, r *http.Request) {
 }
 
 func sendSMIToServer(sensorID string, result SMIResult) {
-    url := "http://127.0.0.1:8080/smi"
+    finalServerIP := "" 
+    url := fmt.Sprintf("http://%s:8080/smi", finalServerIP)
     data := map[string]interface{}{
         "sensor_id": sensorID,
         "smi":       result.SMI,
@@ -106,32 +107,8 @@ func sendSMIToServer(sensorID string, result SMIResult) {
     }
 }
 
-func checkServerConnectivity(url string) error {
-    client := &http.Client{
-        Timeout: time.Second * 5,
-    }
-    resp, err := client.Get(url + "/health")
-    if err != nil {
-        return fmt.Errorf("failed to connect to %s: %v", url, err)
-    }
-    defer resp.Body.Close()
-    if resp.StatusCode != http.StatusOK {
-        body, _ := ioutil.ReadAll(resp.Body)
-        return fmt.Errorf("unexpected status code from %s: %d, body: %s", url, resp.StatusCode, string(body))
-    }
-    return nil
-}
-
 func main() {
-    serverURL := "http://127.0.0.1:8080"
-    err := checkServerConnectivity(serverURL)
-    if err != nil {
-        log.Printf("Warning: Unable to connect to server at %s: %v", serverURL, err)
-        log.Printf("Proceeding with startup, but SMI data transmission may fail")
-    } else {
-        log.Printf("Successfully connected to server at %s", serverURL)
-    }
-
-    http.HandleFunc("/sensor_data", receiveSensorData)    
+    http.HandleFunc("/sensor_data", receiveSensorData)
+    log.Println("Server started, listening on :5000")
     log.Fatal(http.ListenAndServe(":5000", nil))
 }
