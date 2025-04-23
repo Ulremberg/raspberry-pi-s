@@ -1,0 +1,38 @@
+1. Desativar o modo de suspensão/sleep do sistema: 
+# No Raspberry Pi
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
+2. Configurar o sistema para reiniciar automaticamente o serviço em caso de falha: Crie um serviço systemd para o processador do Raspberry Pi: 
+# Criar arquivo de serviço
+sudo nano /etc/systemd/system/raspberry_processor.service
+Adicione o seguinte conteúdo:
+[Unit]
+Description=Raspberry Pi Sensor Processor
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/go run /home/pi/raspberry_processor.go
+WorkingDirectory=/home/pi
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+
+3. Ative o serviço:
+sudo systemctl enable raspberry_processor
+sudo systemctl start raspberry_processor
+
+
+4.Para iniciar o teste:
+
+chmod +x run_long_test.sh
+
+./run_long_test.sh 192.168.1.100 zero_w
+
+
+Para o Zero 2W:
+
+./run_long_test.sh 192.168.1.101 zero_2w
